@@ -1,0 +1,4 @@
+Rank,Zone,Bottleneck_Runs,Bottleneck_Percentage,Average_Bottleneck_Score
+1,Assembly,2999,99.96666666666667,1.1597022342350405
+2,Drilling,1,0.03333333333333333,0.5556665884983627
+3,Milling,0,0.0,0.4931718688395032

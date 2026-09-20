@@ -1,0 +1,271 @@
+{
+  "n_eval": 250,
+  "calibration_source": "validation folder (500 images)",
+  "temperature": 1.0,
+  "accuracy": 1.0,
+  "ece_before": 0.00039750552177431064,
+  "ece_after": 0.0003975021851133631,
+  "per_class": [
+    {
+      "class": "crack",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 50
+    },
+    {
+      "class": "hole",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 50
+    },
+    {
+      "class": "normal",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 50
+    },
+    {
+      "class": "rust",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 50
+    },
+    {
+      "class": "scratch",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 50
+    }
+  ],
+  "confusion": [
+    [
+      50,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      50,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      50,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      50,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      50
+    ]
+  ],
+  "classes": [
+    "crack",
+    "hole",
+    "normal",
+    "rust",
+    "scratch"
+  ],
+  "reliability": [
+    [
+      0.9996024978148866,
+      1.0,
+      250
+    ]
+  ],
+  "decision_rates": {
+    "false_accept_rate": 0.0,
+    "false_reject_rate": 0.0,
+    "review_rate": 0.0,
+    "auto_decision_accuracy": 1.0
+  },
+  "threshold_sweep": [
+    {
+      "reject_threshold": 0.05,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.1,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.167,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.25,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.35,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.5,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.65,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    },
+    {
+      "reject_threshold": 0.8,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "expected_cost": 0.0
+    }
+  ],
+  "robustness": [
+    {
+      "condition": "dim light (x0.6)",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9992702782786541
+    },
+    {
+      "condition": "bright light (x1.5)",
+      "accuracy": 0.992,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9908536302840034
+    },
+    {
+      "condition": "low contrast",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9994924135137033
+    },
+    {
+      "condition": "rotate 15 deg",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9995446904146245
+    },
+    {
+      "condition": "rotate 90 deg",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9995153340861433
+    },
+    {
+      "condition": "horizontal flip",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9995730402411125
+    },
+    {
+      "condition": "blur",
+      "accuracy": 1.0,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.0,
+      "mean_confidence": 0.9965789473582666
+    },
+    {
+      "condition": "sensor noise",
+      "accuracy": 0.78,
+      "false_accept_rate": 0.03,
+      "false_reject_rate": 0.0,
+      "review_rate": 0.204,
+      "mean_confidence": 0.8638091240507972
+    },
+    {
+      "condition": "JPEG compression",
+      "accuracy": 0.996,
+      "false_accept_rate": 0.0,
+      "false_reject_rate": 0.02,
+      "review_rate": 0.024,
+      "mean_confidence": 0.9864617175577651
+    }
+  ],
+  "ood_probes": [
+    {
+      "probe": "random noise",
+      "decision": "REVIEW",
+      "top_class": "normal",
+      "top_conf": 0.5967050612954777,
+      "flagged": true
+    },
+    {
+      "probe": "flat grey",
+      "decision": "PASS",
+      "top_class": "normal",
+      "top_conf": 0.9487797114248915,
+      "flagged": false
+    },
+    {
+      "probe": "black",
+      "decision": "REJECT_NOVEL",
+      "top_class": "normal",
+      "top_conf": 0.4549491317885889,
+      "flagged": true
+    },
+    {
+      "probe": "white",
+      "decision": "REVIEW",
+      "top_class": "normal",
+      "top_conf": 0.8266810955099955,
+      "flagged": true
+    },
+    {
+      "probe": "checkerboard",
+      "decision": "REJECT",
+      "top_class": "crack",
+      "top_conf": 0.7238453014294578,
+      "flagged": true
+    },
+    {
+      "probe": "random colour blocks",
+      "decision": "REJECT_NOVEL",
+      "top_class": "normal",
+      "top_conf": 0.4888662568402894,
+      "flagged": true
+    }
+  ],
+  "ood_flag_rate": 0.8333333333333334
+}

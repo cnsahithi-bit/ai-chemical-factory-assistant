@@ -1,0 +1,286 @@
+"""
+Web server for inspection_system.py
+
+Put this file and the static/ folder next to inspection_system.py, then:
+    pip install flask
+    python server.py
+and open http://localhost:5000
+"""
+
+import os
+import io
+import json
+import math
+import uuid
+import base64
+import tempfile
+import threading
+
+import numpy as np
+import pandas as pd
+from flask import Flask, Response, request, send_from_directory
+
+import inspection_system as core
+
+app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+CTX = None                 # loaded once at startup
+LOCK = threading.Lock()    # one model call at a time
+JOBS = {}                  # background jobs (batch, evaluation)
+
+
+# ---------------------------------------------------------------- helpers
+def _clean(o):
+    o = core.jsonable(o)
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    if isinstance(o, np.generic):
+        return _clean(o.item())
+    if isinstance(o, float) and (math.isnan(o) or math.isinf(o)):
+        return None
+    return o
+
+
+def ok(obj, code=200):
+    return Response(json.dumps(_clean(obj)), status=code, mimetype="application/json")
+
+
+def fail(msg, code=400):
+    return ok({"error": msg}, code)
+
+
+def data_url(path):
+    if not path or not os.path.exists(path):
+        return None
+    ext = os.path.splitext(path)[1].lower().lstrip(".")
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "bmp": "bmp", "webp": "webp"}.get(ext, "png")
+    with open(path, "rb") as f:
+        return f"data:image/{mime};base64," + base64.b64encode(f.read()).decode()
+
+
+def valid_index(idx):
+    n = len(CTX["m1"])
+    if idx < 0 or idx >= n:
+        raise IndexError(f"Product number must be between 0 and {n - 1}.")
+
+
+@app.errorhandler(Exception)
+def on_error(e):
+    return fail(f"{type(e).__name__}: {e}", 500)
+
+
+# ---------------------------------------------------------------- one product
+def build_payload(idx, image_path=None, heatmap=True, uploaded=False):
+    with LOCK:
+        rec = core.inspect_product(idx, CTX, image_path=image_path, heatmap=heatmap, verbose=False)
+        v = CTX["vision"]
+        img = core.read_image(rec["Image"])
+        a = core.analyse_probs(v.calibrated(v.raw_probs([img])[0]), v.classes)
+        temperature = v.T
+
+    vision = {
+        "decision": a["decision"], "decision_text": core.DECISION_TEXT[a["decision"]],
+        "reason": a["reason"], "top_class": a["top_class"], "top_conf": a["top_conf"],
+        "margin": a["margin"], "entropy": a["entropy"], "p_defect": a["p_defect"],
+        "defect_type": a["defect_type"], "type_conf": a["type_conf"],
+        "novel": a["novel"], "uncertain": a["uncertain"], "probs": a["probs"],
+        "temperature": temperature,
+    }
+
+    loc = None
+    if "Localization_Supported" in rec:
+        loc = {"supported": rec["Localization_Supported"], "box": rec.get("Localization_Box") or None,
+               "area": rec.get("Localization_Area"), "overlay": data_url(rec.get("Localization_Image"))}
+
+    zone = None
+    if rec.get("Zone_Status") not in (None, "N/A"):
+        zone = {
+            "status": rec["Zone_Status"], "top": rec.get("Likely_Zone"), "second": rec.get("Second_Zone"),
+            "confidence": rec.get("Zone_Confidence"), "gap": rec.get("Probability_Gap"),
+            "reason": rec.get("Reason"), "evidence": rec.get("Evidence"),
+            "zones": [{"zone": z, "contribution": rec.get(z + "_Contribution"), "stress": rec.get(z + "_Stress")}
+                      for z in core.ZONES + ["Storage"]],
+        }
+
+    bz = rec.get("Run_Bottleneck_Zone")
+    labels = {
+        "WhatIf_A": f"Defects -{int(core.WHATIF_DEFECT_REDUCTION * 100)}%",
+        "WhatIf_B": f"{bz} capacity +{int(core.WHATIF_CAPACITY_GAIN * 100)}%",
+        "WhatIf_A+Bcombined": "Both changes",
+    }
+    whatif = [{"scenario": labels.get(k, k), "profit_change": rec[k]} for k in rec if k.startswith("WhatIf_")]
+
+    recs = []
+    for item in str(rec.get("Recommendations", "")).split(" | "):
+        if item.startswith("P") and ":" in item:
+            pr, text = item.split(":", 1)
+            recs.append({"priority": int(pr[1:]), "text": text.strip()})
+
+    return {
+        "index": idx, "batch_id": rec["Batch_ID"], "image_path": rec["Image"],
+        "folder_label": None if uploaded else rec["Folder_Label"],
+        "image": data_url(rec["Image"]), "vision": vision, "localization": loc, "zone": zone,
+        "flow": {"bottleneck": bz, "loss_pct": rec.get("Run_Throughput_Loss_Pct"),
+                 "wip": rec.get("Run_WIP_Stored"), "primary": CTX["prod"]["primary"],
+                 "secondary": CTX["prod"]["secondary"],
+                 "drift": [x for x in str(rec.get("Drift_Flags", "")).split(" | ") if x]},
+        "economics": {"profit": rec.get("Run_Profit"), "margin": rec.get("Run_Margin_Pct"),
+                      "predicted_margin": rec.get("Predicted_Margin_Pct"),
+                      "unit_cost": rec.get("Unit_Defect_Cost"), "whatif": whatif},
+        "recommendations": recs,
+    }
+
+
+# ---------------------------------------------------------------- routes
+@app.get("/")
+def home():
+    return send_from_directory("static", "index.html")
+
+
+@app.get("/dashboard")
+def dashboard():
+    folder = os.path.dirname(core.DASHBOARD_FILE)
+    if not os.path.exists(core.DASHBOARD_FILE):
+        return "Run a batch inspection first to generate the dashboard.", 404
+    return send_from_directory(folder, os.path.basename(core.DASHBOARD_FILE))
+
+
+@app.get("/api/status")
+def status():
+    v, p = CTX["vision"], CTX["prod"]
+    return ok({
+        "classes": v.classes, "n_products": len(CTX["m1"]), "n_images": len(CTX["image_paths"]),
+        "temperature": v.T, "t_low": core.T_LOW, "auto_reject": core.AUTO_REJECT_THRESHOLD,
+        "cost_fa": core.COST_FALSE_ACCEPT, "cost_fr": core.COST_FALSE_REJECT,
+        "primary": p["primary"], "secondary": p["secondary"],
+        "has_eval": os.path.exists(core.EVAL_FILE), "has_dashboard": os.path.exists(core.DASHBOARD_FILE),
+    })
+
+
+@app.get("/api/inspect/<int:idx>")
+def inspect_get(idx):
+    valid_index(idx)
+    image = request.args.get("image")
+    if image and image not in CTX["image_paths"]:
+        return fail("Unknown image path.")
+    return ok(build_payload(idx, image, request.args.get("heatmap", "1") == "1"))
+
+
+@app.post("/api/inspect-upload")
+def inspect_upload():
+    f = request.files.get("file")
+    if f is None:
+        return fail("No file uploaded.")
+    ext = os.path.splitext(f.filename or "")[1].lower()
+    if ext not in core.IMAGE_EXTENSIONS:
+        return fail("Upload a JPG, PNG, BMP or WEBP image.")
+    idx = int(request.form.get("product", 0))
+    valid_index(idx)
+    folder = os.path.join(tempfile.gettempdir(), "inspection_uploads")
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, uuid.uuid4().hex + ext)
+    f.save(path)
+    try:
+        return ok(build_payload(idx, path, request.form.get("heatmap", "1") == "1", uploaded=True))
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
+
+
+@app.get("/api/production")
+def production():
+    p = CTX["prod"]
+    return ok({
+        "ranking": p["ranking"], "zone_summary": p["zone_summary"], "util_wait": p["util_wait"],
+        "primary": p["primary"], "secondary": p["secondary"], "avg_in": p["avg_in"],
+        "avg_out": p["avg_out"], "avg_gap": p["avg_gap"], "avg_loss_pct": p["avg_loss_pct"],
+        "avg_wip": p["avg_wip"], "high_util": p["high_util"],
+    })
+
+
+# ---------------------------------------------------------------- background jobs
+def start_job(kind, fn):
+    jid = uuid.uuid4().hex[:8]
+    JOBS[jid] = {"kind": kind, "status": "running", "done": 0, "total": 0, "error": None, "result": None}
+
+    def wrapper():
+        try:
+            JOBS[jid]["result"] = fn(JOBS[jid])
+            JOBS[jid]["status"] = "done"
+        except Exception as exc:
+            JOBS[jid]["status"] = "error"
+            JOBS[jid]["error"] = f"{type(exc).__name__}: {exc}"
+
+    threading.Thread(target=wrapper, daemon=True).start()
+    return jid
+
+
+def batch_job(n):
+    def run(job):
+        job["total"] = n
+        idxs = np.linspace(0, len(CTX["m1"]) - 1, n, dtype=int)
+        order = np.random.default_rng(42).permutation(len(CTX["image_paths"]))
+        records, used_heat = [], 0
+        for k, idx in enumerate(idxs):
+            path = CTX["image_paths"][order[k % len(order)]]
+            with LOCK:
+                rec = core.inspect_product(int(idx), CTX, image_path=path,
+                                           heatmap=used_heat < 5, verbose=False)
+            if rec.get("Localization_Image"):
+                used_heat += 1
+            records.append(rec)
+            job["done"] = k + 1
+
+        bdf = pd.DataFrame(records)
+        os.makedirs(core.OUT_DIR, exist_ok=True)
+        bdf.to_csv(core.BATCH_OUTPUT_FILE, index=False)
+        ev = json.load(open(core.EVAL_FILE)) if os.path.exists(core.EVAL_FILE) else None
+        core.build_dashboard(CTX, bdf, ev)
+
+        counts = bdf["Decision"].value_counts().to_dict()
+        zones = bdf[bdf["Zone_Status"] == "ATTRIBUTED"]["Likely_Zone"].value_counts().to_dict()
+        slim = [{"index": r["Product_Index"], "image": r["Image"], "top_class": r["Top_Class"],
+                 "confidence": r["YOLO_Confidence"], "p_defect": r["P_Defect"], "decision": r["Decision"],
+                 "decision_text": core.DECISION_TEXT[r["Decision"]], "zone": r.get("Likely_Zone"),
+                 "zone_confidence": r.get("Zone_Confidence")} for r in records]
+        return {"records": slim, "counts": counts, "zones": zones,
+                "defect_rate": float((bdf["P_Defect"] >= 0.5).mean()),
+                "avg_margin": float(bdf["Run_Margin_Pct"].mean())}
+    return run
+
+
+def eval_job(job):
+    with LOCK:
+        return core.evaluate(CTX["vision"], verbose=False)
+
+
+@app.post("/api/batch")
+def batch():
+    n = int((request.get_json(silent=True) or {}).get("n", 60))
+    return ok({"job": start_job("batch", batch_job(max(5, min(n, 300))))})
+
+
+@app.post("/api/eval/run")
+def eval_run():
+    return ok({"job": start_job("eval", eval_job)})
+
+
+@app.get("/api/eval")
+def eval_get():
+    if not os.path.exists(core.EVAL_FILE):
+        return ok({"report": None})
+    return ok({"report": json.load(open(core.EVAL_FILE))})
+
+
+@app.get("/api/jobs/<jid>")
+def job_status(jid):
+    job = JOBS.get(jid)
+    return ok(job) if job else fail("Unknown job.", 404)
+
+
+if __name__ == "__main__":
+    CTX = core.build_context()
+    print("\nOpen http://localhost:5000")
+    app.run(host="127.0.0.1", port=5000, threaded=True)

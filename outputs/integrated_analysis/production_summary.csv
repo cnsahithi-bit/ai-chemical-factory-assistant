@@ -1,0 +1,2 @@
+Primary_Bottleneck,Secondary_Constraint,Average_Input,Average_Output,Average_Throughput_Gap,Average_Throughput_Loss_Percent,Assembly_High_Utilization_Runs,Drilling_High_Utilization_Runs,Milling_High_Utilization_Runs,Average_Cost_Impact
+Assembly,Drilling,7537.239,6554.3713333333335,982.8676666666667,8.737853210530169,1191,307,0,

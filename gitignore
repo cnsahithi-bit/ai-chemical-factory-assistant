@@ -1,0 +1,6 @@
+.venv/
+frontend/node_modules/
+backend/state/
+__pycache__/
+datasets/prepared/
+runs/

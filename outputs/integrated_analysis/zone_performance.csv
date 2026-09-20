@@ -1,0 +1,4 @@
+Zone,Average_Utilization_Percent,Average_Waiting_Time,Runs_Above_90_Percent,Runs_Above_95_Percent
+Drilling,52.0993368,2.4623344953333337,307,125
+Milling,39.186225433333334,0.33829630666666666,0,0
+Assembly,68.3470986,1.4002822646666666,1191,1079
